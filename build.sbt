@@ -9,8 +9,12 @@ lazy val root = project
 
     scalaVersion := scala3Version,
 
-    javaOptions += "-XstartOnFirstThread",
+    javaOptions ++= List(
+      "-XstartOnFirstThread",
+      "-Dorg.lwjgl.vulkan.libname=/Applications/VulkanSDK/macOS/lib/libvulkan.dylib",
+    ),
     fork := true,
+    mainClass in (Compile, run) := Some("Ch2ValidationLayers"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"        % lwjglVersion,
