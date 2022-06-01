@@ -20,7 +20,7 @@ val validationLayers = List("VK_LAYER_KHRONOS_validation")
 val enableValidationLayers = true
 
 
-@main def Ch2ValidationLayers =
+@main def Ch02ValidationLayers =
   initWindow()
   initVulkan()
   loop()

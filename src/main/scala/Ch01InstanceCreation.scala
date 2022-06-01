@@ -14,7 +14,7 @@ import org.lwjgl.PointerBuffer
 var window = -1l
 var instance: VkInstance = null
 
-@main def Ch1InstanceCreation =
+@main def Ch01InstanceCreation =
   initWindow()
   initVulkan()
   loop()
