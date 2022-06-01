@@ -1,3 +1,5 @@
+package ch02ValidationLayers
+
 import scala.util.Using
 import scala.jdk.CollectionConverters._
 

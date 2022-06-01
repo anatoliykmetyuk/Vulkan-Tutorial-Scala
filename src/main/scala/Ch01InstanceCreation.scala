@@ -1,3 +1,5 @@
+package ch01InstanceCreation
+
 import scala.util.Using
 
 import org.lwjgl.glfw.GLFW.*
