@@ -14,7 +14,7 @@ lazy val root = project
       "-Dorg.lwjgl.vulkan.libname=/Applications/VulkanSDK/macOS/lib/libvulkan.dylib",
     ),
     fork := true,
-    mainClass in (Compile, run) := Some("ch04LogicalDevice.Ch04LogicalDevice"),
+    mainClass in (Compile, run) := Some("ch05WindowSurface.Ch05WindowSurface"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"        % lwjglVersion,
