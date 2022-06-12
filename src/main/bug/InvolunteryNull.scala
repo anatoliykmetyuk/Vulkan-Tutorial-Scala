@@ -21,8 +21,6 @@ import org.lwjgl.system.MemoryStack.*
 import org.lwjgl.PointerBuffer
 import java.nio.IntBuffer
 import java.nio.LongBuffer
-import java.nio.Buffer
-import scala.collection.JavaConverters.AsScala
 
 
 var window = -1l
@@ -156,9 +154,18 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     val capabilities = VkSurfaceCapabilitiesKHR.calloc(stack)
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, capabilities)
 
-    val formats = querySeq(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, _, _: VkSurfaceFormatKHR.Buffer))
-    val presentModes = querySeq(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, _, _: IntBuffer))
-    SwapChainSupportDetails(capabilities, formats, presentModes)
+    // val formatCount = stack.mallocInt(1)
+    // vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, formatCount, null);
+    // val formats: VkSurfaceFormatKHR.Buffer = VkSurfaceFormatKHR.calloc(formatCount.get(0), stack)
+    // vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, formatCount, formats)
+    val formats = querySeq(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, _, _))
+
+    val presentModeCount = stack.mallocInt(1)
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, null)
+    val presentModes = stack.mallocInt(presentModeCount.get(0))
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, presentModes)
+
+    SwapChainSupportDetails(capabilities, formats, presentModes.toList)
   end querySwapChainSupport
 
   def pickPhysicalDevice() =
@@ -324,7 +331,6 @@ def cleanup() =
 
 
 // === Utility ===
-
 def asPointerBuffer(strs: Seq[String], stack: MemoryStack): PointerBuffer =
   val buffer = stack.mallocPointer(strs.length)
   for str <- strs do buffer.put(stack.UTF8(str))
@@ -347,9 +353,6 @@ def clamp(x: Int, min: Int, max: Int) =
   else if x > max then max
   else min
 
-
-// === Memory operations ===
-
 trait Allocatable[T]:
   def apply(size: Int = 1)(using MemoryStack): T
 
@@ -358,33 +361,31 @@ object Allocatable:
     def apply(size: Int)(using stk: MemoryStack) = f(size, stk) }
   given Allocatable[PointerBuffer] = make((size, stk) => stk.mallocPointer(size))
   given Allocatable[LongBuffer] = make((size, stk) => stk.mallocLong(size))
-  given Allocatable[IntBuffer] = make((size, stk) => stk.mallocInt(size))
   given Allocatable[VkSurfaceFormatKHR.Buffer] = make(VkSurfaceFormatKHR.calloc)
 
-trait AsScalaList[T, C]:
-  def toList(c: C): List[T]
-
-extension [C](c: C) def toList[T](using conv: AsScalaList[T, C]): List[T] =
-  conv.toList(c)
-
-object AsScalaList:
-  given bufferAsList[T, C <: Buffer { def get(): T }]: AsScalaList[T, C] = buf => {
-    val bldr = ListBuffer.empty[T]
-    while buf.hasRemaining do bldr += buf.get()
-    bldr.toList
-  }
-  given iterableAsList[T, C <: java.lang.Iterable[T]]: AsScalaList[T, C] = _.asScala.toList
-
 type Buf[T] = { def get(i: Int): T }
+
 def create[T, Ptr <: Buf[T]](function: Ptr => Int)(using stk: MemoryStack, alloc: Allocatable[Ptr]): T =
   val ptr = alloc()
   if function(ptr) != VK_SUCCESS then
     throw RuntimeException(s"Failed to create a Vulkan object")
   ptr.get(0)
 
-def querySeq[T, TgtBuf: [x] =>> AsScalaList[T, x]](function: (IntBuffer, TgtBuf | Null) => Int)(using stk: MemoryStack, alloc: Allocatable[TgtBuf]) =
+def querySeq[T, TgtBuf <: java.lang.Iterable[T]](function: (IntBuffer, TgtBuf) => Int)(using stk: MemoryStack, alloc: Allocatable[TgtBuf]) =
   val count = stk.mallocInt(1)
   function(count, null)
-  val targetBuf = alloc(count.get(0))
+  val targetBuf: VkSurfaceFormatKHR.Buffer = alloc(count.get(0))
   function(count, targetBuf)
-  targetBuf.toList
+  targetBuf.asScala.toList
+
+    // val formatCount = stack.mallocInt(1)
+    // vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, formatCount, null);
+    // val formats: VkSurfaceFormatKHR.Buffer = VkSurfaceFormatKHR.calloc(formatCount.get(0), stack)
+    // vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, formatCount, formats)
+
+    // val presentModeCount = stack.mallocInt(1)
+    // vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, null)
+    // val presentModes = stack.mallocInt(presentModeCount.get(0))
+    // vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, presentModes)
+
+
