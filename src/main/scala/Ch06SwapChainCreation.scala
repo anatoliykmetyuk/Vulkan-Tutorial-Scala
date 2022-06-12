@@ -60,13 +60,7 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
   given MemoryStack = stack
 
   def checkValidationLayerSupport() =
-    val layerCount = stack.mallocInt(1)
-    vkEnumerateInstanceLayerProperties(layerCount, null)
-
-    val availableLayersBuf = VkLayerProperties.calloc(layerCount.get(0), stack)
-    vkEnumerateInstanceLayerProperties(layerCount, availableLayersBuf)
-    val availableLayers = availableLayersBuf.asScala.map(_.layerNameString).toSet
-
+    val availableLayers = querySeq(vkEnumerateInstanceLayerProperties).map(_.layerNameString).toSet
     val unavailableLayers = validationLayers.filterNot(availableLayers)
     if unavailableLayers.nonEmpty then
       throw RuntimeException(s"The following layers are not supported: ${unavailableLayers.mkString(", ")}")
@@ -120,11 +114,7 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
 
   enum FamilyType { case graphicsFamily, presentFamily }
   def findQueueFamiliesIds(device: VkPhysicalDevice): Map[FamilyType, List[Int]] =
-    val queueFamilyCount = stack.mallocInt(1)
-    vkGetPhysicalDeviceQueueFamilyProperties(device, queueFamilyCount, null)
-
-    val queueFamiliesProps = VkQueueFamilyProperties.calloc(queueFamilyCount.get(0), stack)
-    vkGetPhysicalDeviceQueueFamilyProperties(device, queueFamilyCount, queueFamiliesProps)
+    val queueFamiliesProps = querySeq(vkGetPhysicalDeviceQueueFamilyProperties(device, _, _: VkQueueFamilyProperties.Buffer))
 
     def familiesSupported(props: VkQueueFamilyProperties, qid: Int): List[FamilyType] =
       def presentation(): Option[FamilyType] =
@@ -139,7 +129,7 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     end familiesSupported
 
     ( for
-        (props, qid) <- queueFamiliesProps.asScala.toList.zipWithIndex
+        (props, qid) <- queueFamiliesProps.zipWithIndex
         familyTpe <- familiesSupported(props, qid)
       yield
         familyTpe -> qid
@@ -170,13 +160,8 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
       end checkQueueSupport
 
       def checkDeviceExtensionSupport(): Boolean =
-        val extensionsCountPtr = stack.mallocInt(1)
-        vkEnumerateDeviceExtensionProperties(device, null: CharSequence, extensionsCountPtr, null)
-
-        val availableExtensionsBuf = VkExtensionProperties.calloc(extensionsCountPtr.get(0), stack)
-        vkEnumerateDeviceExtensionProperties(device, null: CharSequence, extensionsCountPtr, availableExtensionsBuf)
-        val availableExtensions = availableExtensionsBuf.asScala.toSet.map(_.extensionNameString)
-
+        val availableExtensions = querySeq(vkEnumerateDeviceExtensionProperties(device, null: CharSequence, _, _: VkExtensionProperties.Buffer))
+          .toSet.map(_.extensionNameString)
         deviceExtensions.forall(availableExtensions.contains)
       end checkDeviceExtensionSupport
 
@@ -188,14 +173,7 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
       checkQueueSupport() && checkDeviceExtensionSupport() && checkSwapChainSupport()
     end isDeviceSuitable
 
-    val deviceCount = stack.mallocInt(1)
-    vkEnumeratePhysicalDevices(instance, deviceCount, null)
-
-    val devicePtrs = stack.mallocPointer(deviceCount.get(0))
-    vkEnumeratePhysicalDevices(instance, deviceCount, devicePtrs)
-    val devices = for i <- 0 until deviceCount.get(0)
-      yield VkPhysicalDevice(devicePtrs.get(i), instance)
-
+    val devices = querySeq(vkEnumeratePhysicalDevices(instance, _, _: PointerBuffer)).map(VkPhysicalDevice(_, instance))
     physicalDevice = devices.find(isDeviceSuitable).get
   end pickPhysicalDevice
 
@@ -288,13 +266,7 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     createInfo.oldSwapchain(VK_NULL_HANDLE)
 
     swapChain = create(vkCreateSwapchainKHR(device, createInfo, null, _: LongBuffer))
-
-    val imageCountReal = stack.mallocInt(1)
-    vkGetSwapchainImagesKHR(device, swapChain, imageCountReal, null);
-    val images = stack.mallocLong(imageCountReal.get(0))
-    vkGetSwapchainImagesKHR(device, swapChain, imageCountReal, images)
-    swapChainImages = images.toList
-
+    swapChainImages = querySeq(vkGetSwapchainImagesKHR(device, swapChain, _, _: LongBuffer))
     swapChainImageFormat = surfaceFormat.format
     swapChainExtent = extent
   end createSwapChain
@@ -359,7 +331,10 @@ object Allocatable:
   given Allocatable[PointerBuffer] = make((size, stk) => stk.mallocPointer(size))
   given Allocatable[LongBuffer] = make((size, stk) => stk.mallocLong(size))
   given Allocatable[IntBuffer] = make((size, stk) => stk.mallocInt(size))
-  given Allocatable[VkSurfaceFormatKHR.Buffer] = make(VkSurfaceFormatKHR.calloc)
+  given surfBuf: Allocatable[VkSurfaceFormatKHR.Buffer] = make(VkSurfaceFormatKHR.calloc)
+  given famiBuf: Allocatable[VkQueueFamilyProperties.Buffer] = make(VkQueueFamilyProperties.calloc)
+  given layrBuf: Allocatable[VkLayerProperties.Buffer] = make(VkLayerProperties.calloc)
+  given extPBuf: Allocatable[VkExtensionProperties.Buffer] = make(VkExtensionProperties.calloc)
 
 trait AsScalaList[T, C]:
   def toList(c: C): List[T]
@@ -368,12 +343,11 @@ extension [C](c: C) def toList[T](using conv: AsScalaList[T, C]): List[T] =
   conv.toList(c)
 
 object AsScalaList:
-  given bufferAsList[T, C <: Buffer { def get(): T }]: AsScalaList[T, C] = buf => {
+  given bufferAsList[T, C <: { def get(): T; def hasRemaining(): Boolean }]: AsScalaList[T, C] = buf => {
     val bldr = ListBuffer.empty[T]
-    while buf.hasRemaining do bldr += buf.get()
+    while buf.hasRemaining() do bldr += buf.get()
     bldr.toList
   }
-  given iterableAsList[T, C <: java.lang.Iterable[T]]: AsScalaList[T, C] = _.asScala.toList
 
 type Buf[T] = { def get(i: Int): T }
 def create[T, Ptr <: Buf[T]](function: Ptr => Int)(using stk: MemoryStack, alloc: Allocatable[Ptr]): T =
@@ -382,7 +356,7 @@ def create[T, Ptr <: Buf[T]](function: Ptr => Int)(using stk: MemoryStack, alloc
     throw RuntimeException(s"Failed to create a Vulkan object")
   ptr.get(0)
 
-def querySeq[T, TgtBuf: [x] =>> AsScalaList[T, x]](function: (IntBuffer, TgtBuf | Null) => Int)(using stk: MemoryStack, alloc: Allocatable[TgtBuf]) =
+def querySeq[T, TgtBuf: [x] =>> AsScalaList[T, x]](function: (IntBuffer, TgtBuf | Null) => Int | Unit)(using stk: MemoryStack, alloc: Allocatable[TgtBuf]) =
   val count = stk.mallocInt(1)
   function(count, null)
   val targetBuf = alloc(count.get(0))
