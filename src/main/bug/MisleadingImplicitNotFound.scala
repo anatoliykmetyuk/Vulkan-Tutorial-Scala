@@ -197,10 +197,17 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     createInfo.ppEnabledExtensionNames(asPointerBuffer(deviceExtensions, stack))
     if enableValidationLayers then
       createInfo.ppEnabledLayerNames(asPointerBuffer(validationLayers, stack))
-
     device = VkDevice(create(vkCreateDevice(physicalDevice, createInfo, null, _)), physicalDevice, createInfo)
+
+    // val pQueue = stack.mallocPointer(1)
+    // vkGetDeviceQueue(device, graphicsFamilyId, 0, pQueue)
+    // graphicsQueue = VkQueue(pQueue.get(0), device)
+
+    // vkGetDeviceQueue(device, presentFamilyId, 0, pQueue)
+    // presentQueue = VkQueue(pQueue.get(0), device)
+
     graphicsQueue = VkQueue(query(vkGetDeviceQueue(device, graphicsFamilyId, 0, _: PointerBuffer)), device)
-    presentQueue = VkQueue(query(vkGetDeviceQueue(device, presentFamilyId, 0, _: PointerBuffer)), device)
+    presentQueue = query(vkGetDeviceQueue(device, presentFamilyId, 0, _: PointerBuffer))
   end createLogicalDevice
 
   def createSwapChain() =
