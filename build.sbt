@@ -9,13 +9,15 @@ lazy val root = project
 
     scalaVersion := scala3Version,
 
+    Global / onChangedBuildSource := ReloadOnSourceChanges,
+
     javaOptions ++= List(
       "-XstartOnFirstThread",
       "-Dorg.lwjgl.vulkan.libname=/Applications/VulkanSDK/macOS/lib/libvulkan.dylib",
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("ch06SwapChainCreation.Ch06SwapChainCreation"),
+    mainClass in (Compile, run) := Some("ch07ImageViews.Ch07ImageViews"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"        % lwjglVersion,
