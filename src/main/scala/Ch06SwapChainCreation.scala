@@ -352,7 +352,7 @@ def create[T, Ptr <: Buf[T]: Allocatable](function: Ptr => Int)(using MemoryStac
     throw RuntimeException(s"Failed to create a Vulkan object")
   ptr.get(0)
 
-def querySeq[T, TgtBuf: [x] =>> AsScalaList[T, x]: Allocatable](function: (IntBuffer, TgtBuf | Null) => Int | Unit)(using MemoryStack) =
+def querySeq[T, TgtBuf: AsScalaList[T, _]: Allocatable](function: (IntBuffer, TgtBuf | Null) => Int | Unit)(using MemoryStack) =
   val count: IntBuffer = alloc()
   function(count, null)
   val targetBuf: TgtBuf = alloc(count.get(0))

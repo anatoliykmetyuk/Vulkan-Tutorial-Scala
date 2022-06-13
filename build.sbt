@@ -13,6 +13,7 @@ lazy val root = project
       "-XstartOnFirstThread",
       "-Dorg.lwjgl.vulkan.libname=/Applications/VulkanSDK/macOS/lib/libvulkan.dylib",
     ),
+    scalacOptions += "-Ykind-projector:underscores",
     fork := true,
     mainClass in (Compile, run) := Some("ch06SwapChainCreation.Ch06SwapChainCreation"),
 
