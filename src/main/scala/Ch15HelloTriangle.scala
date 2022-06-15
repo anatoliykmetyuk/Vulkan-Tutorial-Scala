@@ -514,8 +514,9 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     val queueFamilyIndices = findQueueFamiliesIds(physicalDevice)
 
     val poolInfo = VkCommandPoolCreateInfo.callocStack(stack)
-    poolInfo.sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
-    poolInfo.queueFamilyIndex(queueFamilyIndices(FamilyType.graphicsFamily).head)
+      .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
+      .queueFamilyIndex(queueFamilyIndices(FamilyType.graphicsFamily).head)
+      .flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT)
     commandPool = create(vkCreateCommandPool(device, poolInfo, null, _: LongBuffer))
   end createCommandPool
 
