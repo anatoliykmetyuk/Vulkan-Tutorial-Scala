@@ -87,10 +87,8 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     val glfwExtensions: PointerBuffer = glfwGetRequiredInstanceExtensions()
     if enableValidationLayers then
       val extensions: PointerBuffer = stack.mallocPointer(glfwExtensions.capacity() + 1)
-
-      for i <- 0 until glfwExtensions.capacity do
-        extensions.put(i, glfwExtensions.get(i))
-      extensions.put(glfwExtensions.capacity, stack.UTF8(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+      (extensions: CustomBuffer[PointerBuffer]).put(glfwExtensions)
+      extensions.put(stack.UTF8(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
       extensions.rewind()
     else
       glfwExtensions
@@ -118,9 +116,9 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
     appInfo.apiVersion(VK_API_VERSION_1_0)
 
     val createInfo = VkInstanceCreateInfo.calloc(stack)
-    createInfo.sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
-    createInfo.pApplicationInfo(appInfo)
-    createInfo.ppEnabledExtensionNames(getRequiredExtensions())
+      .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
+      .pApplicationInfo(appInfo)
+      .ppEnabledExtensionNames(getRequiredExtensions())
     if enableValidationLayers then
       checkValidationLayerSupport()
       createInfo.ppEnabledLayerNames(asPointerBuffer(validationLayers, stack))
