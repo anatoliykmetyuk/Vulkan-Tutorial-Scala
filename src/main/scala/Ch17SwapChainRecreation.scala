@@ -26,6 +26,7 @@ import java.nio.IntBuffer
 import java.nio.LongBuffer
 import java.nio.Buffer
 import java.nio.ByteBuffer
+import javax.management.Query
 
 
 var window = -1l
@@ -37,7 +38,7 @@ var graphicsQueue: VkQueue = null
 var presentQueue: VkQueue = null
 var debugMessenger: Long = -1l
 
-var swapChain: Long = -1l
+var swapChain: Long = VK_NULL_HANDLE
 var swapChainImages: List[Long] = List.empty
 var swapChainImageFormat: Int = -1
 var swapChainExtent: VkExtent2D = null
@@ -70,7 +71,7 @@ val deviceExtensions = List(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
 def initWindow() =
   if !glfwInit() then throw RuntimeException("Cannot init GLFW")
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API)
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE)
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE)
   window = glfwCreateWindow(800, 600, this.getClass.getSimpleName, 0, 0)
   if window == 0 then throw RuntimeException("Cannot create window")
 
@@ -268,6 +269,7 @@ object SwapChainLifecycle:
 
   def createSwapChain()(using stack: MemoryStack) =
     val swapChainSupport = querySwapChainSupport(physicalDevice)
+    import swapChainSupport.capabilities
 
     // Swapchain Properties
     val surfaceFormat: VkSurfaceFormatKHR = swapChainSupport.formats.find(fmt =>
@@ -276,18 +278,15 @@ object SwapChainLifecycle:
     val presentMode: Int = swapChainSupport.presentModes.find(_ == VK_PRESENT_MODE_MAILBOX_KHR)
       .getOrElse(VK_PRESENT_MODE_FIFO_KHR)
     val extent: VkExtent2D =
-      import swapChainSupport.capabilities
       if capabilities.currentExtent.width != Int.MaxValue then capabilities.currentExtent
       else
         val width = stack.mallocInt(1)
         val height = stack.mallocInt(1)
         glfwGetFramebufferSize(window, width, height)
+        VkExtent2D.calloc(stack)
+          .width(clamp(width.get(0), capabilities.minImageExtent.width, capabilities.maxImageExtent.width))
+          .height(clamp(height.get(0), capabilities.minImageExtent.height, capabilities.maxImageExtent.height))
 
-        val actualExtent = VkExtent2D.calloc(stack)
-        actualExtent.width(clamp(width.get(0), capabilities.minImageExtent.width, capabilities.maxImageExtent.width))
-        actualExtent.height(clamp(height.get(0), capabilities.minImageExtent.height, capabilities.maxImageExtent.height))
-        actualExtent
-    end extent
     val imageCount: Int =
       if swapChainSupport.capabilities.maxImageCount > 0
       then
@@ -298,14 +297,14 @@ object SwapChainLifecycle:
 
     // Swapchain Creation Info
     val createInfo = VkSwapchainCreateInfoKHR.calloc(stack)
-    createInfo.sType(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR)
-    createInfo.surface(surface)
-    createInfo.minImageCount(imageCount)
-    createInfo.imageFormat(surfaceFormat.format)
-    createInfo.imageColorSpace(surfaceFormat.colorSpace)
-    createInfo.imageExtent(extent)
-    createInfo.imageArrayLayers(1)
-    createInfo.imageUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+      .sType(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR)
+      .surface(surface)
+      .minImageCount(imageCount)
+      .imageFormat(surfaceFormat.format)
+      .imageColorSpace(surfaceFormat.colorSpace)
+      .imageExtent(extent)
+      .imageArrayLayers(1)
+      .imageUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 
     val indices = findQueueFamiliesIds(physicalDevice)
     if indices(FamilyType.graphicsFamily) != indices(FamilyType.presentFamily) then
@@ -319,12 +318,12 @@ object SwapChainLifecycle:
     createInfo.compositeAlpha(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
     createInfo.presentMode(presentMode)
     createInfo.clipped(true)
-    createInfo.oldSwapchain(VK_NULL_HANDLE)
+    createInfo.oldSwapchain(swapChain)
 
     swapChain = create(vkCreateSwapchainKHR(device, createInfo, null, _: LongBuffer))
     swapChainImages = querySeq(vkGetSwapchainImagesKHR(device, swapChain, _, _: LongBuffer))
     swapChainImageFormat = surfaceFormat.format
-    swapChainExtent = extent
+    swapChainExtent = VkExtent2D.create().set(extent)
   end createSwapChain
 
   def createImageViews()(using stack: MemoryStack) =
@@ -573,16 +572,30 @@ object SwapChainLifecycle:
     createFramebuffers()
   end initializeSwapChain
 
-  def recreateSwapChain()(using stack: MemoryStack) =
+  def recreateSwapChain()(using stack: MemoryStack) =   // TODO DRY this
     vkDeviceWaitIdle(device)
-    cleanupSwapChain()
-    initializeSwapChain()
+
+    swapChainFramebuffers.foreach(vkDestroyFramebuffer(device, _, null))
+    vkDestroyPipeline(device, graphicsPipeline, null)
+    vkDestroyPipelineLayout(device, pipelineLayout, null)
+    vkDestroyRenderPass(device, renderPass, null)
+    swapChainImageViews.foreach(vkDestroyImageView(device, _, null))
+
+    val old = swapChain
+    createSwapChain()
+    vkDestroySwapchainKHR(device, old, null)
+
+    createImageViews()
+    createRenderPass()
+    createGraphicsPipeline()
+    createFramebuffers()
   end recreateSwapChain
 end SwapChainLifecycle
 
 def loop() =
   var currentFrame = 0
-  def drawFrame() = Using.resource(stackPush()) { stack =>
+  var recreate = true
+  def drawFrame(): Unit = Using.resource(stackPush()) { stack =>
     given MemoryStack = stack
     def recordCommandBuffer(commandBuffer: VkCommandBuffer, imageIndex: Int) =
       val beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
@@ -615,9 +628,17 @@ def loop() =
     val commandBuffer = commandBuffers(currentFrame)
 
     vkWaitForFences(device, inFlightFence, true, Long.MaxValue)
+
+    val imageIndex =
+      try query(vkAcquireNextImageKHR(device, swapChain, Long.MaxValue, imageAvailableSemaphore, VK_NULL_HANDLE, _: IntBuffer))
+      catch
+        case QueryException(VK_ERROR_OUT_OF_DATE_KHR) | QueryException(VK_SUBOPTIMAL_KHR) =>
+          println("Recreating swap chain")
+          SwapChainLifecycle.recreateSwapChain()
+          return
+
     vkResetFences(device, inFlightFence)
 
-    val imageIndex = query(vkAcquireNextImageKHR(device, swapChain, Long.MaxValue, imageAvailableSemaphore, VK_NULL_HANDLE, _: IntBuffer))
     vkResetCommandBuffer(commandBuffer, 0)
     recordCommandBuffer(commandBuffer, imageIndex)
 
@@ -743,10 +764,12 @@ def querySeq[T, TgtBuf: AsScalaList[T, _]: Allocatable](function: (IntBuffer, Tg
   function(count, targetBuf)
   targetBuf.toList
 
+case class QueryException(status: Int) extends RuntimeException(s"Query failed with status $status")
 def query[T, Ptr <: Buf[T]: Allocatable](function: Ptr => Int | Unit)(using MemoryStack) =
   val ptr: Ptr = alloc()
-  function(ptr)
-  ptr.get(0)
+  function(ptr) match
+    case status: Int if status != VK_SUCCESS => throw QueryException(status)
+    case _ => ptr.get(0)
 
 def queryStruct[T: Allocatable](function: T => Int | Unit)(using MemoryStack) =
   val struct: T = alloc()
