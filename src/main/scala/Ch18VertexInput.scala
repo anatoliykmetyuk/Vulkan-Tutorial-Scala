@@ -76,7 +76,7 @@ object Vertex:
       .stride(size)
       .inputRate(VK_VERTEX_INPUT_RATE_VERTEX)
 
-  def  getAttributeDescriptions()(using stack: MemoryStack): VkVertexInputAttributeDescription.Buffer =
+  def getAttributeDescriptions()(using stack: MemoryStack): VkVertexInputAttributeDescription.Buffer =
       val attributeDescriptions = VkVertexInputAttributeDescription.callocStack(2, stack)
 
       // Position
@@ -468,108 +468,87 @@ object SwapChainLifecycle:
     populateShaderStage(shaderStages.get(1), VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule)
 
     // Fixed-Function Stages
-    val vertexInputInfo: VkPipelineVertexInputStateCreateInfo =
-      val info = VkPipelineVertexInputStateCreateInfo.calloc(stack)
-      info.sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
-      info.pVertexBindingDescriptions(Vertex.getBindingDescription())
-      info.pVertexAttributeDescriptions(Vertex.getAttributeDescriptions())
-      info
+    val vertexInputInfo = VkPipelineVertexInputStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
+      .pVertexBindingDescriptions(Vertex.getBindingDescription())
+      .pVertexAttributeDescriptions(Vertex.getAttributeDescriptions())
 
-    val inputAssembly: VkPipelineInputAssemblyStateCreateInfo =
-      val info = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
-      info.sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
-      info.topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-      info.primitiveRestartEnable(false)
-      info
+    val inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
+      .topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+      .primitiveRestartEnable(false)
 
-    val viewport: VkViewport.Buffer =
-      val res = VkViewport.calloc(1, stack)
-      res.x(0.0f)
-      res.y(0.0f)
-      res.width(swapChainExtent.width.toFloat)
-      res.height(swapChainExtent.height.toFloat)
-      res.minDepth(0.0f)
-      res.maxDepth(1.0f)
-      res
+    val viewport = VkViewport.calloc(1, stack)
+      .x(0.0f)
+      .y(0.0f)
+      .width(swapChainExtent.width.toFloat)
+      .height(swapChainExtent.height.toFloat)
+      .minDepth(0.0f)
+      .maxDepth(1.0f)
 
-    val scissor: VkRect2D.Buffer =
-      val res = VkRect2D.calloc(1, stack)
-      res.offset(VkOffset2D.calloc(stack).set(0, 0))
-      res.extent(swapChainExtent)
-      res
+    val scissor = VkRect2D.calloc(1, stack)
+      .offset(VkOffset2D.calloc(stack).set(0, 0))
+      .extent(swapChainExtent)
 
-    val viewportState: VkPipelineViewportStateCreateInfo =
-      val res = VkPipelineViewportStateCreateInfo.calloc(stack)
-      res.sType(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
-      res.pViewports(viewport)
-      res.pScissors(scissor)
-      res
+    val viewportState = VkPipelineViewportStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
+      .pViewports(viewport)
+      .pScissors(scissor)
 
-    val rasterizer: VkPipelineRasterizationStateCreateInfo =
-      val res = VkPipelineRasterizationStateCreateInfo.calloc(stack)
-      res.sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
-      res.depthClampEnable(false)
-      res.rasterizerDiscardEnable(false)
-      res.polygonMode(VK_POLYGON_MODE_FILL)
-      res.lineWidth(1.0f)
-      res.cullMode(VK_CULL_MODE_BACK_BIT)
-      res.frontFace(VK_FRONT_FACE_CLOCKWISE)
-      res.depthBiasEnable(false)
-      res.depthBiasConstantFactor(0.0f)
-      res.depthBiasClamp(0.0f)
-      res.depthBiasSlopeFactor(0.0f)
-      res
+    val rasterizer = VkPipelineRasterizationStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
+      .depthClampEnable(false)
+      .rasterizerDiscardEnable(false)
+      .polygonMode(VK_POLYGON_MODE_FILL)
+      .lineWidth(1.0f)
+      .cullMode(VK_CULL_MODE_BACK_BIT)
+      .frontFace(VK_FRONT_FACE_CLOCKWISE)
+      .depthBiasEnable(false)
+      .depthBiasConstantFactor(0.0f)
+      .depthBiasClamp(0.0f)
+      .depthBiasSlopeFactor(0.0f)
 
-    val multisampling: VkPipelineMultisampleStateCreateInfo =
-      val res = VkPipelineMultisampleStateCreateInfo.calloc(stack)
-      res.sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
-      res.sampleShadingEnable(false)
-      res.rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
-      res.minSampleShading(1.0f) // Optional
-      res.pSampleMask(null) // Optional
-      res.alphaToCoverageEnable(false) // Optional
-      res.alphaToOneEnable(false) // Optional
-      res
+    val multisampling = VkPipelineMultisampleStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
+      .sampleShadingEnable(false)
+      .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT)
+      .minSampleShading(1.0f) // Optional
+      .pSampleMask(null) // Optional
+      .alphaToCoverageEnable(false) // Optional
+      .alphaToOneEnable(false) // Optional
 
-    val colorBlendAttachment: VkPipelineColorBlendAttachmentState.Buffer =
-      val res = VkPipelineColorBlendAttachmentState.calloc(1, stack)
-      res.colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
-      res.blendEnable(false)
-      res
+    val colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack)
+      .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+      .blendEnable(false)
 
-    val colorBlending: VkPipelineColorBlendStateCreateInfo =
-      val res = VkPipelineColorBlendStateCreateInfo.calloc(stack)
-      res.sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
-      res.logicOpEnable(false)
-      res.logicOp(VK_LOGIC_OP_COPY) // Optional
-      res.pAttachments(colorBlendAttachment)
-      res.blendConstants(stack.floats(0.0f, 0.0f, 0.0f, 0.0f))
-      res
+    val colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
+      .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
+      .logicOpEnable(false)
+      .logicOp(VK_LOGIC_OP_COPY) // Optional
+      .pAttachments(colorBlendAttachment)
+      .blendConstants(stack.floats(0.0f, 0.0f, 0.0f, 0.0f))
 
     pipelineLayout =
-      val info = VkPipelineLayoutCreateInfo.calloc(stack)
-      info.sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-      create(vkCreatePipelineLayout(device, info, null, _: LongBuffer))
+      create(vkCreatePipelineLayout(device, VkPipelineLayoutCreateInfo.calloc(stack)
+        .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO), null, _: LongBuffer))
 
     // Graphics Pipeline
-    val pipelineInfo: VkGraphicsPipelineCreateInfo.Buffer =
-      val res = VkGraphicsPipelineCreateInfo.calloc(1, stack)
-      res.sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
-      res.pStages(shaderStages)
-      res.pVertexInputState(vertexInputInfo)
-      res.pInputAssemblyState(inputAssembly)
-      res.pViewportState(viewportState)
-      res.pRasterizationState(rasterizer)
-      res.pMultisampleState(multisampling)
-      res.pDepthStencilState(null) // Optional
-      res.pColorBlendState(colorBlending)
-      res.pDynamicState(null) // Optional
-      res.layout(pipelineLayout)
-      res.renderPass(renderPass)
-      res.subpass(0)
-      res.basePipelineHandle(VK_NULL_HANDLE) // Optional
-      res.basePipelineIndex(-1) // Optional
-      res
+    val pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+      .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+      .pStages(shaderStages)
+      .pVertexInputState(vertexInputInfo)
+      .pInputAssemblyState(inputAssembly)
+      .pViewportState(viewportState)
+      .pRasterizationState(rasterizer)
+      .pMultisampleState(multisampling)
+      .pDepthStencilState(null) // Optional
+      .pColorBlendState(colorBlending)
+      .pDynamicState(null) // Optional
+      .layout(pipelineLayout)
+      .renderPass(renderPass)
+      .subpass(0)
+      .basePipelineHandle(VK_NULL_HANDLE) // Optional
+      .basePipelineIndex(-1) // Optional
 
     graphicsPipeline = create(vkCreateGraphicsPipelines(
       device, VK_NULL_HANDLE, pipelineInfo, null, _: LongBuffer))
