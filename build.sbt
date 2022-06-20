@@ -17,7 +17,7 @@ lazy val root = project
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("Ch18VertexInput.Ch18VertexInput"),
+    mainClass in (Compile, run) := Some("Ch19VertexBuffer.Ch19VertexBuffer"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"         % lwjglVersion,
