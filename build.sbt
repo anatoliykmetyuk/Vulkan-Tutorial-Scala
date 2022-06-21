@@ -17,7 +17,7 @@ lazy val root = project
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("Ch20StagingBuffer.Ch20StagingBuffer"),
+    mainClass in (Compile, run) := Some("Ch21IndexBuffer.Ch21IndexBuffer"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"         % lwjglVersion,
