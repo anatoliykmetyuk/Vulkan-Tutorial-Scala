@@ -17,7 +17,7 @@ lazy val root = project
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("Ch23DescriptorSets.Ch23DescriptorSets"),
+    mainClass in (Compile, run) := Some("Ch24TextureImage.Ch24TextureImage"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"         % lwjglVersion,
