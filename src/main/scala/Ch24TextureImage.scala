@@ -1066,6 +1066,8 @@ end loop
 def cleanup() =
   SwapChainLifecycle.cleanupSwapChain()
 
+  vkDestroyImage(device, textureImage, null)
+  vkFreeMemory(device, textureImageMemory, null)
   vkDestroyDescriptorPool(device, descriptorPool, null)
   vkDestroyDescriptorSetLayout(device, descriptorSetLayout, null)
   uniformBuffers.foreach(vkDestroyBuffer(device, _, null))
