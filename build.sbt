@@ -17,7 +17,7 @@ lazy val root = project
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("Ch26TextureMapping.Ch26TextureMapping"),
+    mainClass in (Compile, run) := Some("Ch27DepthBuffering.Ch27DepthBuffering"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"         % lwjglVersion,
