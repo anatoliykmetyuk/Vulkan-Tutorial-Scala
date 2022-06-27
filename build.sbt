@@ -17,7 +17,7 @@ lazy val root = project
     ),
     scalacOptions += "-Ykind-projector:underscores",
     fork := true,
-    mainClass in (Compile, run) := Some("Ch29Mipmapping.Ch29Mipmapping"),
+    mainClass in (Compile, run) := Some("Ch30Multisampling.Ch30Multisampling"),
 
     libraryDependencies ++= List(
       "org.lwjgl" % "lwjgl"         % lwjglVersion,
