@@ -26,7 +26,7 @@ import org.lwjgl.assimp.AIScene
 import org.lwjgl.assimp.Assimp
 import org.lwjgl.assimp.Assimp.*
 
-import org.joml.{ Vector2f, Vector3f, Matrix4f }
+import org.joml.{ Vector2f, Vector3f, Matrix4f, Quaternionf }
 
 import java.nio.{ Buffer, IntBuffer, LongBuffer, ByteBuffer }
 import java.io.File
@@ -93,6 +93,14 @@ val maxFramesInFlight = 2
 val validationLayers = List("VK_LAYER_KHRONOS_validation")
 val deviceExtensions = List(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
 
+var movementVector = Vector3f(0, 0, 0)
+var rotationVector = Vector2f(0, 0)
+var cursorX = 0d
+var cursorY = 0d
+var cursorDX = 0d
+var cursorDY = 0d
+
+
 case class Vertex(pos: Vector3f, color: Vector3f, texCoords: Vector2f)
 object Vertex:
   val size = (3 + 3 + 2) * java.lang.Float.BYTES
@@ -152,6 +160,37 @@ def initWindow() =
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE)
   window = glfwCreateWindow(800, 600, this.getClass.getSimpleName, 0, 0)
   if window == 0 then throw RuntimeException("Cannot create window")
+
+  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED)
+  glfwSetKeyCallback(window, (_, key, scancode, action, mods) => {
+    for case (keyTest, movementDir) <- List(
+      (GLFW_KEY_W, Vector3f( 1,  0, 0)),
+      (GLFW_KEY_S, Vector3f(-1,  0, 0)),
+      (GLFW_KEY_A, Vector3f( 0, -1, 0)),
+      (GLFW_KEY_D, Vector3f( 0,  1, 0)),
+    ) do
+      if key == keyTest && action == GLFW_PRESS then
+        movementVector.add(movementDir)
+      else if key == keyTest && action == GLFW_RELEASE then
+        movementVector.add(Vector3f(movementDir).negate())
+
+    if key == GLFW_KEY_ESCAPE && action == GLFW_PRESS then
+      glfwSetWindowShouldClose(window, true)
+  })
+
+  val xArr = Array[Double](0)
+  val yArr = Array[Double](0)
+  glfwGetCursorPos(window, xArr, yArr)
+  cursorX = xArr(0)
+  cursorY = yArr(0)
+
+  glfwSetCursorPosCallback(window, (_, x, y) => {
+    cursorDX = x - cursorX
+    cursorDY = y - cursorY
+    println(s"Cursor delta $cursorDX, $cursorDY")
+    cursorX = x
+    cursorY = y
+  })
 
 
 enum FamilyType { case graphicsFamily, presentFamily }
@@ -1256,6 +1295,11 @@ end SwapChainLifecycle
 def loop() =
   var currentFrame = 0
   var recreate = true
+
+  val target = Vector3f(0, -50, 0)
+  var position = Vector3f(100.0f, 100.0f, 100.0f)
+  var direction = Vector3f(target).sub(position).normalize()
+
   def drawFrame(): Unit = Using.resource(stackPush()) { stack =>
     given MemoryStack = stack
     def recordCommandBuffer(commandBuffer: VkCommandBuffer, imageIndex: Int) =
@@ -1295,8 +1339,8 @@ def loop() =
       val ubo = UniformBufferObject(Matrix4f(), Matrix4f(), Matrix4f())
       // ubo.model.rotate((glfwGetTime() * Math.toRadians(90)).toFloat, 0.0f, 0.0f, 1.0f);
       ubo.view.lookAt(
-        Vector3f(100.0f, 100.0f, 100.0f),
-        Vector3f(0.0f, -50.0f, 0.0f),
+        position,
+        Vector3f(position).add(direction),
         Vector3f(0.0f, 0.0f, 1.0f))
       ubo.proj.perspective(Math.toRadians(45).toFloat,
         (swapChainExtent.width / swapChainExtent.height).toFloat, 0.1f, 1000.0f);
@@ -1354,8 +1398,17 @@ def loop() =
     currentFrame = (currentFrame + 1) % maxFramesInFlight
   }
 
+  def updateModel() =
+    direction.rotateY(cursorDY.toFloat / 100)
+    val movementRotation = Quaternionf().rotateTo(Vector3f(1, 0, 0), direction)
+    position.add(Vector3f(movementVector).rotate(movementRotation))
+
+    cursorDX = 0
+    cursorDY = 0
+
   while !glfwWindowShouldClose(window) do
     glfwPollEvents()
+    updateModel()
     drawFrame()
 end loop
 
