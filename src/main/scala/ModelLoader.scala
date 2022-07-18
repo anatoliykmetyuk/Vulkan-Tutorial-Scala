@@ -51,9 +51,10 @@ def processMesh(scene: AIScene, mesh: AIMesh): Model =
 
   def processTexCoords(mesh: AIMesh): List[Vector2f] =
     val aiTexCoords = mesh.mTextureCoords(0)
-    for i <- (0 until aiTexCoords.capacity).toList yield
-      val coords = aiTexCoords.get(i)
-      Vector2f(coords.x, coords.y)
+    if aiTexCoords == null then Nil else
+      for i <- (0 until aiTexCoords.capacity).toList yield
+        val coords = aiTexCoords.get(i)
+        Vector2f(coords.x, coords.y)
 
   def processIndices(mesh: AIMesh): List[Int] =
     for
