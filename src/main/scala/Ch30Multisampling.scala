@@ -188,7 +188,7 @@ def createImage(width: Int, height: Int, mipLevels: Int, numSamples: Int, format
     .tiling(tiling)
     .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
     .usage(usage)
-    .samples(VK_SAMPLE_COUNT_1_BIT)
+    .samples(numSamples)
     .sharingMode(VK_SHARING_MODE_EXCLUSIVE)
   imageInfo
     .extent
@@ -835,10 +835,10 @@ def initVulkan() = Using.resource(stackPush()) { stack =>
       , null, _: LongBuffer))
 
   def loadModel() =
-    val modelFile = File("src/main/resources/models/viking_room.obj")
+    val modelFile = File("src/main/resources/models/webinar-bunny.obj")
     val model = modelloader.loadModel(modelFile, aiProcess_FlipUVs | aiProcess_DropNormals)
     val color = Vector3f(1.0f, 1.0f, 1.0f)
-    vertices = for (pos, coord) <- model.positions.zip(model.texCoords) yield Vertex(pos, color, coord)
+    vertices = for pos <- model.positions yield Vertex(pos, color, Vector2f(0, 0))
     indices = model.indices
 
   def getMaxUsableSampleCount() =
@@ -1293,13 +1293,13 @@ def loop() =
 
     def updateUniformBuffer() =
       val ubo = UniformBufferObject(Matrix4f(), Matrix4f(), Matrix4f())
-      ubo.model.rotate((glfwGetTime() * Math.toRadians(90)).toFloat, 0.0f, 0.0f, 1.0f);
+      // ubo.model.rotate((glfwGetTime() * Math.toRadians(90)).toFloat, 0.0f, 0.0f, 1.0f);
       ubo.view.lookAt(
-        Vector3f(2.0f, 2.0f, 2.0f),
-        Vector3f(0.0f, 0.0f, 0.0f),
+        Vector3f(100.0f, 100.0f, 100.0f),
+        Vector3f(0.0f, -50.0f, 0.0f),
         Vector3f(0.0f, 0.0f, 1.0f))
       ubo.proj.perspective(Math.toRadians(45).toFloat,
-        (swapChainExtent.width / swapChainExtent.height).toFloat, 0.1f, 10.0f);
+        (swapChainExtent.width / swapChainExtent.height).toFloat, 0.1f, 1000.0f);
       ubo.proj.m11(ubo.proj.m11() * -1)
 
       val uboMemory = uniformBuffersMemory(currentFrame)
