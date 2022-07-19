@@ -26,12 +26,13 @@ import org.lwjgl.assimp.AIScene
 import org.lwjgl.assimp.Assimp
 import org.lwjgl.assimp.Assimp.*
 
-import org.joml.{ Vector2f, Vector3f, Matrix4f, Quaternionf }
+import org.joml.*
 
 import java.nio.{ Buffer, IntBuffer, LongBuffer, ByteBuffer }
 import java.io.File
 import javax.management.Query
 import org.joml.sampling.UniformSampling
+import org.joml.Quaternionfc
 
 
 var window = -1l  // TODO replace -1 with VK_NULL_HANDLE everywhere
@@ -94,12 +95,45 @@ val validationLayers = List("VK_LAYER_KHRONOS_validation")
 val deviceExtensions = List(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
 
 var movementVector = Vector3f(0, 0, 0)
-var rotationVector = Vector2f(0, 0)
+// var rotationVector = Vector2f(0, 0)
 var cursorX = 0d
 var cursorY = 0d
 var cursorDX = 0d
 var cursorDY = 0d
 
+case class Camera(position: Vector3fc, rotation: Quaternionfc = Quaternionf()):
+  def toAbsoluteCoordinates(vec: Vector3fc) =
+    rotation.transform(vec, Vector3f())
+
+  def direction: Vector3fc =
+    toAbsoluteCoordinates(Vector3f(0, 0, 1))
+
+  def up: Vector3fc =
+    toAbsoluteCoordinates(Vector3f(0, -1, 0))
+
+  def right: Vector3fc =
+    toAbsoluteCoordinates(Vector3f(1, 0, 0))
+
+  def view: Matrix4fc = Matrix4f().lookAt(
+    position,
+    position.add(direction, Vector3f()),
+    up)
+
+  def projection =
+    var res = Matrix4f().perspective(
+      Math.toRadians(45).toFloat,
+      (swapChainExtent.width / swapChainExtent.height).toFloat, 0.1f, 1000.0f)
+    res.m11(res.m11() * -1)
+
+  def move(movementVector: Vector3fc): Camera =
+    this.copy(position = Vector3f(position).add(toAbsoluteCoordinates(movementVector)))
+
+  def rotate(pitchDelta: Float, yawDelta: Float): Camera =
+    this.copy(rotation = Quaternionf(rotation).rotateAxis(pitchDelta, right))//.rotateAxis(yawDelta, up))
+
+  def lookAt(target: Vector3fc): Camera =
+    this.copy(rotation = Quaternionf(rotation).rotateTo(direction, target))
+end Camera
 
 case class Vertex(pos: Vector3f, color: Vector3f, texCoords: Vector2f)
 object Vertex:
@@ -142,8 +176,8 @@ object Vertex:
   end getAttributeDescriptions
 end Vertex
 
-case class UniformBufferObject(model: Matrix4f,
-  view: Matrix4f, proj: Matrix4f)
+case class UniformBufferObject(model: Matrix4fc,
+  view: Matrix4fc, proj: Matrix4fc)
 object UniformBufferObject:
   val size = 3 * 16 * java.lang.Float.BYTES
 
@@ -164,10 +198,10 @@ def initWindow() =
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED)
   glfwSetKeyCallback(window, (_, key, scancode, action, mods) => {
     for case (keyTest, movementDir) <- List(
-      (GLFW_KEY_W, Vector3f( 1,  0, 0)),
-      (GLFW_KEY_S, Vector3f(-1,  0, 0)),
-      (GLFW_KEY_A, Vector3f( 0, -1, 0)),
-      (GLFW_KEY_D, Vector3f( 0,  1, 0)),
+      (GLFW_KEY_W, Vector3f( 0, 0,  1)),
+      (GLFW_KEY_S, Vector3f( 0, 0, -1)),
+      (GLFW_KEY_A, Vector3f(-1, 0,  0)),
+      (GLFW_KEY_D, Vector3f( 1, 0,  0)),
     ) do
       if key == keyTest && action == GLFW_PRESS then
         movementVector.add(movementDir)
@@ -1296,9 +1330,9 @@ def loop() =
   var currentFrame = 0
   var recreate = true
 
-  val target = Vector3f(0, -50, 0)
-  var position = Vector3f(100.0f, 100.0f, 100.0f)
-  var direction = Vector3f(target).sub(position).normalize()
+  val target: Vector3fc = Vector3f(0, -50, 0)
+  val position: Vector3fc = Vector3f(100, 100, 100)
+  var camera = Camera(position).lookAt(Vector3f(target).sub(position))
 
   def drawFrame(): Unit = Using.resource(stackPush()) { stack =>
     given MemoryStack = stack
@@ -1336,15 +1370,7 @@ def loop() =
     end recordCommandBuffer
 
     def updateUniformBuffer() =
-      val ubo = UniformBufferObject(Matrix4f(), Matrix4f(), Matrix4f())
-      // ubo.model.rotate((glfwGetTime() * Math.toRadians(90)).toFloat, 0.0f, 0.0f, 1.0f);
-      ubo.view.lookAt(
-        position,
-        Vector3f(position).add(direction),
-        Vector3f(0.0f, 0.0f, 1.0f))
-      ubo.proj.perspective(Math.toRadians(45).toFloat,
-        (swapChainExtent.width / swapChainExtent.height).toFloat, 0.1f, 1000.0f);
-      ubo.proj.m11(ubo.proj.m11() * -1)
+      val ubo = UniformBufferObject(Matrix4f(), camera.view, camera.projection)
 
       val uboMemory = uniformBuffersMemory(currentFrame)
       val data = queryStruct(vkMapMemory(device, uboMemory,
@@ -1399,10 +1425,10 @@ def loop() =
   }
 
   def updateModel() =
-    direction.rotateY(cursorDY.toFloat / 100)
-    val movementRotation = Quaternionf().rotateTo(Vector3f(1, 0, 0), direction)
-    position.add(Vector3f(movementVector).rotate(movementRotation))
-
+    // ubo.model.rotate((glfwGetTime() * Math.toRadians(90)).toFloat, 0.0f, 0.0f, 1.0f);
+    camera = camera
+      .rotate(pitchDelta = -cursorDY.toFloat / 100, yawDelta = -cursorDX.toFloat / 100)
+      .move(movementVector)
     cursorDX = 0
     cursorDY = 0
 
