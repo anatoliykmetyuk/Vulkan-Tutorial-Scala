@@ -129,7 +129,7 @@ case class Camera(position: Vector3fc, rotation: Quaternionfc = Quaternionf()):
     this.copy(position = Vector3f(position).add(toAbsoluteCoordinates(movementVector)))
 
   def rotate(pitchDelta: Float, yawDelta: Float): Camera =
-    this.copy(rotation = Quaternionf(rotation).rotateAxis(pitchDelta, right))//.rotateAxis(yawDelta, up))
+    this.copy(rotation = Quaternionf(rotation).rotateAxis(pitchDelta, right).rotateAxis(yawDelta, up))
 
   def lookAt(target: Vector3fc): Camera =
     this.copy(rotation = Quaternionf(rotation).rotateTo(direction, target))
